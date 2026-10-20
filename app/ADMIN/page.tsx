@@ -55,6 +55,29 @@ export default function Admin() {
     setLogueado(false);
   };
 
+  const cambiarVarios = (id: number, campos: Partial<Fila>) =>
+    setFilas((fs) => fs.map((f) => (f.id === id ? { ...f, ...campos, _dirty: true } : f)));
+
+  // 10% automático: tachado = precio ÷ 0,9
+  const SIN_AUTO = ["combos", "destacada"];
+  const tachado10 = (p: number) => Math.round(p / 0.9);
+  const tiene10 = (f: Fila) => !!f.precio && f.precio_tachado === tachado10(f.precio);
+
+  const cambiarPrecio = (f: Fila, v: number) => {
+    const auto = tiene10(f) || (!f.precio && !f.precio_tachado && !SIN_AUTO.includes(f.seccion));
+    if (auto && v > 0) cambiarVarios(f.id, { precio: v, precio_tachado: tachado10(v), badge: f.badge || "10% OFF" });
+    else cambiarVarios(f.id, { precio: v });
+  };
+
+  const toggle10 = (f: Fila, on: boolean) =>
+    on
+      ? cambiarVarios(f.id, { precio_tachado: tachado10(f.precio), badge: f.badge || "10% OFF" })
+      : cambiarVarios(f.id, { precio_tachado: null, badge: f.badge === "10% OFF" ? null : f.badge });
+
+  const activar = async (f: Fila) => {
+    await guardar({ ...f, visible: true });
+  };
+
   const cambiar = (id: number, campo: keyof Producto, valor: unknown) =>
     setFilas((fs) => fs.map((f) => (f.id === id ? { ...f, [campo]: valor, _dirty: true } : f)));
 
@@ -276,12 +299,15 @@ export default function Admin() {
                           <input value={f.detalle || ""} onChange={(e) => cambiar(f.id, "detalle", e.target.value)} className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm sm:col-span-2" placeholder="Detalle (opcional)" />
                           <label className="flex items-center gap-2 text-sm">
                             <span className="w-16 shrink-0 text-gray-500">Precio</span>
-                            <input type="number" inputMode="numeric" value={f.precio} onChange={(e) => cambiar(f.id, "precio", Number(e.target.value))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 font-bold" />
+                            <input type="number" inputMode="numeric" value={f.precio} onChange={(e) => cambiarPrecio(f, Number(e.target.value))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 font-bold" />
                           </label>
                           <label className="flex items-center gap-2 text-sm">
                             <span className="w-16 shrink-0 text-gray-500">Tachado</span>
                             <input type="number" inputMode="numeric" value={f.precio_tachado ?? ""} onChange={(e) => cambiar(f.id, "precio_tachado", e.target.value === "" ? null : Number(e.target.value))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5" placeholder="sin tachado" />
-                            <button type="button" onClick={() => cambiar(f.id, "precio_tachado", Math.round(f.precio / 0.9))} className="shrink-0 rounded-md bg-gray-100 px-2 py-1.5 text-xs font-bold" title="Precio ÷ 0,9">+10%</button>
+                            <label className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-xs font-bold ${tiene10(f) ? "bg-[#f15922] text-white" : "bg-gray-100"}`} title="Calcula el tachado solo (precio ÷ 0,9)">
+                              <input type="checkbox" className="hidden" checked={tiene10(f)} onChange={(e) => toggle10(f, e.target.checked)} />
+                              10% auto
+                            </label>
                           </label>
                           <label className="flex items-center gap-2 text-sm">
                             <span className="w-16 shrink-0 text-gray-500">Badge</span>
@@ -303,10 +329,13 @@ export default function Admin() {
                           <button onClick={() => mover(s.id, i, -1)} className="rounded-md px-2 py-1 text-gray-500 hover:bg-gray-100" title="Subir">▲</button>
                           <button onClick={() => mover(s.id, i, 1)} className="rounded-md px-2 py-1 text-gray-500 hover:bg-gray-100" title="Bajar">▼</button>
                           <span className="ml-2 text-xs text-gray-400">
-                            {f.precio_tachado ? <><s>{precio(f.precio_tachado)}</s> → </> : null}<b className="text-gray-700">{precio(f.precio)}{f.c_u ? " c/u" : ""}</b>{f.agotado ? <span className="ml-1 font-bold text-red-500">· AGOTADO</span> : null}
+                            {f.precio_tachado ? <><s>{precio(f.precio_tachado)}</s> → </> : null}<b className="text-gray-700">{precio(f.precio)}{f.c_u ? " c/u" : ""}</b>{f.agotado ? <span className="ml-1 font-bold text-red-500">· AGOTADO</span> : null}{!f.visible ? <span className="ml-1 font-bold text-gray-500">· OCULTO</span> : null}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">
+                          {!f.visible && (
+                            <button onClick={() => activar(f)} className="rounded-lg bg-green-600 px-3 py-1.5 text-sm font-bold text-white">Activar</button>
+                          )}
                           <button onClick={() => borrar(f)} className="rounded-md px-2 py-1 text-xs font-semibold text-red-500 hover:bg-red-50">Borrar</button>
                           <button disabled={!f._dirty || f._saving} onClick={() => guardar(f)} className="rounded-lg bg-[#f15922] px-3 py-1.5 text-sm font-bold text-white disabled:bg-gray-200 disabled:text-gray-400">
                             {f._saving ? "Guardando…" : "Guardar"}
