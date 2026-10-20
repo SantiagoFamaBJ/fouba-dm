@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isAdmin } from "@/lib/auth";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const CAMPOS = ["seccion", "nombre", "detalle", "precio", "precio_tachado", "desde", "badge", "imagen", "orden", "visible"];
+const CAMPOS = ["seccion", "nombre", "detalle", "precio", "precio_tachado", "desde", "badge", "imagen", "orden", "visible", "c_u", "agotado"];
 const limpiar = (b: Record<string, unknown>) => {
   const o: Record<string, unknown> = {};
   for (const k of CAMPOS) if (k in b) o[k] = b[k] === "" && (k === "precio_tachado" || k === "badge") ? null : b[k];

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Config, Producto } from "@/lib/types";
+import type { Config, Producto, Seccion } from "@/lib/types";
 import { SECCIONES } from "@/lib/types";
 import { precio } from "@/lib/format";
 
 type Fila = Producto & { _dirty?: boolean; _saving?: boolean };
+type Sec = Seccion & { _dirty?: boolean };
 
 export default function Admin() {
   const [logueado, setLogueado] = useState<boolean | null>(null);
@@ -14,6 +15,7 @@ export default function Admin() {
   const [tab, setTab] = useState<"productos" | "textos">("productos");
   const [filas, setFilas] = useState<Fila[]>([]);
   const [config, setConfig] = useState<Config | null>(null);
+  const [secs, setSecs] = useState<Sec[]>([]);
   const [aviso, setAviso] = useState("");
 
   const avisar = (t: string) => {
@@ -33,6 +35,8 @@ export default function Admin() {
     const { supabase } = await import("@/lib/supabase");
     const { data } = await supabase.from("fouba_config").select("*").eq("id", 1).maybeSingle();
     setConfig(data as Config);
+    const { data: ss, error: es } = await supabase.from("fouba_secciones").select("*").order("orden");
+    setSecs(!es && ss?.length ? (ss as Sec[]) : SECCIONES);
   };
 
   useEffect(() => {
@@ -116,6 +120,33 @@ export default function Admin() {
     avisar("📷 Foto subida, tocá Guardar");
   };
 
+  const cambiarSec = (id: string, campo: keyof Seccion, valor: unknown) =>
+    setSecs((ss) => ss.map((x) => (x.id === id ? { ...x, [campo]: valor, _dirty: true } : x)));
+
+  const guardarSec = async (sec: Sec) => {
+    const { _dirty, ...body } = sec;
+    const r = await fetch("/api/admin/secciones", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await r.json();
+    if (!r.ok) return avisar("⚠️ " + (d.error || "No se pudo guardar el grupo"));
+    setSecs((ss) => ss.map((x) => (x.id === sec.id ? { ...x, _dirty: false } : x)));
+    avisar("✅ Grupo guardado");
+  };
+
+  const moverSec = async (idx: number, dir: -1 | 1) => {
+    const lista = [...secs].sort((a, b) => a.orden - b.orden);
+    const j = idx + dir;
+    if (j < 0 || j >= lista.length) return;
+    [lista[idx], lista[j]] = [lista[j], lista[idx]];
+    const nueva = lista.map((x, i) => ({ ...x, orden: i + 1 }));
+    setSecs(nueva);
+    const r = await fetch("/api/admin/secciones", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(nueva.map((x) => ({ id: x.id, orden: x.orden }))),
+    });
+    if (!r.ok) avisar("⚠️ No se pudo guardar el orden de los grupos");
+  };
+
   const guardarConfig = async () => {
     if (!config) return;
     const r = await fetch("/api/admin/config", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config) });
@@ -171,19 +202,33 @@ export default function Admin() {
       <main className="mx-auto max-w-5xl px-4 pt-5">
         {tab === "textos" && config && (
           <div className="space-y-4 rounded-2xl bg-white p-5">
+            <div className={`flex items-center justify-between gap-4 rounded-xl p-4 ${config.finalizado ? "bg-red-50 ring-2 ring-red-300" : "bg-gray-50"}`}>
+              <div>
+                <p className="font-display font-extrabold">Promo finalizada</p>
+                <p className="text-sm text-gray-500">Si está activado, la landing deja de mostrar productos y muestra solo el mensaje de cierre.</p>
+              </div>
+              <label className="flex shrink-0 cursor-pointer items-center gap-2 font-semibold">
+                <input type="checkbox" className="h-5 w-5 accent-red-500" checked={!!config.finalizado} onChange={(e) => setConfig({ ...config, finalizado: e.target.checked })} />
+                {config.finalizado ? "Activada" : "Desactivada"}
+              </label>
+            </div>
             {([
               ["titulo", "Título"],
               ["subtitulo", "Bajada"],
               ["fechas", "Fechas"],
-              ["link_sorteo", "Link del botón sorteo (vacío = sin botón)"],
+              ["link_sorteo", "Link del sorteo (vacío = sin banner)"],
+              ["sorteo_titulo", "Banner sorteo · título"],
+              ["sorteo_texto", "Banner sorteo · texto"],
+              ["sorteo_boton", "Banner sorteo · texto del botón"],
               ["legal", "Leyenda legal del pie"],
+              ["finalizado_texto", "Mensaje de promo finalizada"],
             ] as const).map(([k, label]) => (
               <label key={k} className="block">
                 <span className="text-sm font-semibold text-gray-600">{label}</span>
-                {k === "legal" ? (
-                  <textarea value={config[k]} onChange={(e) => setConfig({ ...config, [k]: e.target.value })} rows={3} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2" />
+                {k === "legal" || k === "finalizado_texto" || k === "sorteo_texto" ? (
+                  <textarea value={config[k] || ""} onChange={(e) => setConfig({ ...config, [k]: e.target.value })} rows={3} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2" />
                 ) : (
-                  <input value={config[k]} onChange={(e) => setConfig({ ...config, [k]: e.target.value })} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2" />
+                  <input value={config[k] || ""} onChange={(e) => setConfig({ ...config, [k]: e.target.value })} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2" />
                 )}
               </label>
             ))}
@@ -192,15 +237,30 @@ export default function Admin() {
         )}
 
         {tab === "productos" &&
-          SECCIONES.map((s) => {
+          [...secs].sort((a, b) => a.orden - b.orden).map((s, si, arr) => {
             const lista = filas.filter((f) => f.seccion === s.id).sort((a, b) => a.orden - b.orden);
             return (
               <section key={s.id} className="mb-8">
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="font-display text-lg font-black uppercase italic" style={{ color: s.color }}>
-                    {s.titulo} <span className="text-sm not-italic text-gray-400">({lista.length})</span>
-                  </h2>
-                  <button onClick={() => nuevo(s.id)} className="rounded-lg bg-white px-3 py-1.5 text-sm font-bold shadow-sm">+ Agregar</button>
+                <div className={`mb-3 rounded-2xl border-l-8 bg-white p-3 shadow-sm ${s._dirty ? "ring-2 ring-amber-300" : ""} ${s.visible ? "" : "opacity-60"}`} style={{ borderColor: s.color }}>
+                  <div className="flex items-start gap-2">
+                    <div className="flex flex-col">
+                      <button disabled={si === 0} onClick={() => moverSec(si, -1)} className="rounded-md px-2 py-0.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30" title="Subir grupo">▲</button>
+                      <button disabled={si === arr.length - 1} onClick={() => moverSec(si, 1)} className="rounded-md px-2 py-0.5 text-gray-500 hover:bg-gray-100 disabled:opacity-30" title="Bajar grupo">▼</button>
+                    </div>
+                    <div className="grid flex-1 gap-2">
+                      <input value={s.titulo} onChange={(e) => cambiarSec(s.id, "titulo", e.target.value)} className="rounded-lg border border-gray-200 px-2.5 py-1.5 font-display font-black uppercase italic" style={{ color: s.color }} />
+                      <input value={s.bajada || ""} onChange={(e) => cambiarSec(s.id, "bajada", e.target.value)} placeholder="Bajada (opcional), ej: 10% OFF en todos los productos" className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm" />
+                      <div className="flex flex-wrap items-center gap-3 text-sm">
+                        <label className="flex items-center gap-1.5">Color <input type="color" value={s.color} onChange={(e) => cambiarSec(s.id, "color", e.target.value)} className="h-7 w-9 rounded" /></label>
+                        <label className="flex items-center gap-1.5"><input type="checkbox" checked={s.visible} onChange={(e) => cambiarSec(s.id, "visible", e.target.checked)} /> Grupo visible</label>
+                        <span className="text-gray-400">{lista.length} productos</span>
+                        <div className="ml-auto flex gap-2">
+                          <button onClick={() => nuevo(s.id)} className="rounded-lg border px-3 py-1.5 font-bold">+ Agregar</button>
+                          <button disabled={!s._dirty} onClick={() => guardarSec(s)} className="rounded-lg bg-[#f15922] px-3 py-1.5 font-bold text-white disabled:bg-gray-200 disabled:text-gray-400">Guardar grupo</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   {lista.map((f, i) => (
@@ -229,9 +289,11 @@ export default function Admin() {
                           </label>
                           <div className="flex flex-wrap items-center gap-3 text-sm">
                             <label className="flex items-center gap-1.5"><input type="checkbox" checked={f.desde} onChange={(e) => cambiar(f.id, "desde", e.target.checked)} /> Desde</label>
+                            <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!f.c_u} onChange={(e) => cambiar(f.id, "c_u", e.target.checked)} /> C/U</label>
+                            <label className="flex items-center gap-1.5"><input type="checkbox" checked={!!f.agotado} onChange={(e) => cambiar(f.id, "agotado", e.target.checked)} /> Agotado</label>
                             <label className="flex items-center gap-1.5"><input type="checkbox" checked={f.visible} onChange={(e) => cambiar(f.id, "visible", e.target.checked)} /> Visible</label>
                             <select value={f.seccion} onChange={(e) => cambiar(f.id, "seccion", e.target.value)} className="rounded-lg border border-gray-200 px-2 py-1">
-                              {SECCIONES.map((x) => <option key={x.id} value={x.id}>{x.titulo}</option>)}
+                              {secs.map((x) => <option key={x.id} value={x.id}>{x.titulo}</option>)}
                             </select>
                           </div>
                         </div>
@@ -241,7 +303,7 @@ export default function Admin() {
                           <button onClick={() => mover(s.id, i, -1)} className="rounded-md px-2 py-1 text-gray-500 hover:bg-gray-100" title="Subir">▲</button>
                           <button onClick={() => mover(s.id, i, 1)} className="rounded-md px-2 py-1 text-gray-500 hover:bg-gray-100" title="Bajar">▼</button>
                           <span className="ml-2 text-xs text-gray-400">
-                            {f.precio_tachado ? <><s>{precio(f.precio_tachado)}</s> → </> : null}<b className="text-gray-700">{precio(f.precio)}</b>
+                            {f.precio_tachado ? <><s>{precio(f.precio_tachado)}</s> → </> : null}<b className="text-gray-700">{precio(f.precio)}{f.c_u ? " c/u" : ""}</b>{f.agotado ? <span className="ml-1 font-bold text-red-500">· AGOTADO</span> : null}
                           </span>
                         </div>
                         <div className="flex items-center gap-2">

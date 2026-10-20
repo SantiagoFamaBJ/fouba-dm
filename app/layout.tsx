@@ -11,6 +11,7 @@ import "@fontsource/barlow/500.css";
 import "@fontsource/barlow/600.css";
 import "@fontsource/barlow/700.css";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 
 export const metadata: Metadata = {
   title: "Promos FOUBA 80 años | Dental Medrano",
@@ -22,7 +23,10 @@ export const viewport: Viewport = { themeColor: "#f15922" };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className="antialiased">
-      <body className="min-h-screen font-sans">{children}</body>
+      <body className="min-h-screen font-sans">
+        {children}
+        <Analytics />
+      </body>
     </html>
   );
 }

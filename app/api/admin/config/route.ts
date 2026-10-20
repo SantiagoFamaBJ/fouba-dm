@@ -6,7 +6,9 @@ export async function PATCH(req: Request) {
   if (!(await isAdmin())) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   try {
     const b = await req.json();
-    const fila = { titulo: b.titulo, subtitulo: b.subtitulo, fechas: b.fechas, link_sorteo: b.link_sorteo, legal: b.legal };
+    const CAMPOS = ["titulo", "subtitulo", "fechas", "link_sorteo", "legal", "sorteo_titulo", "sorteo_texto", "sorteo_boton", "finalizado", "finalizado_texto"];
+    const fila: Record<string, unknown> = {};
+    for (const k of CAMPOS) if (k in b) fila[k] = b[k];
     const { data, error } = await supabaseAdmin().from("fouba_config").update(fila).eq("id", 1).select().single();
     if (error) throw error;
     return NextResponse.json(data);
