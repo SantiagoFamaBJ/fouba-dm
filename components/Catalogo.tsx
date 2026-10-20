@@ -139,7 +139,7 @@ export default function Catalogo({
                 ))}
               </div>
             ) : (
-              <div className="grid auto-rows-fr grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
                 {s.items.map((p) => <Card key={p.id} p={p} color={s.color} />)}
               </div>
             )}
@@ -236,7 +236,7 @@ function Agotado() {
 function Card({ p, color }: { p: Producto; color: string }) {
   return (
     <article className="flex h-full flex-col overflow-hidden rounded-2xl border border-black/5 bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
-      <div className="relative flex aspect-[4/3] items-center justify-center bg-gradient-to-b from-gray-50 to-white p-4">
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-gradient-to-b from-gray-50 to-white">
         {p.badge && !p.agotado && (
           <span
             className="absolute left-2.5 top-2.5 z-10 rounded-full px-2.5 py-1 font-display text-[11px] font-extrabold uppercase text-white shadow-sm"
@@ -251,7 +251,7 @@ function Card({ p, color }: { p: Producto; color: string }) {
             src={p.imagen}
             alt={p.nombre}
             loading="lazy"
-            className={`h-full w-full object-contain ${p.agotado ? "opacity-40 grayscale" : ""}`}
+            className={`absolute inset-0 h-full w-full object-contain p-4 ${p.agotado ? "opacity-40 grayscale" : ""}`}
           />
         )}
       </div>
@@ -277,13 +277,13 @@ function Combo({ p, color }: { p: Producto; color: string }) {
       className="relative flex h-full flex-col overflow-hidden rounded-3xl border-2 bg-white sm:flex-row"
       style={{ borderColor: p.agotado ? "#d1d5db" : color }}
     >
-      <div className="relative flex h-48 items-center justify-center bg-gradient-to-br from-gray-50 to-white p-5 sm:h-auto sm:w-[46%]">
+      <div className="relative h-48 shrink-0 overflow-hidden bg-gradient-to-br from-gray-50 to-white sm:h-auto sm:min-h-[220px] sm:w-[44%]">
         {p.agotado && <Agotado />}
         <img
           src={p.imagen || ""}
           alt={p.nombre}
           loading="lazy"
-          className={`h-full max-h-44 w-full object-contain ${p.agotado ? "opacity-40 grayscale" : ""}`}
+          className={`absolute inset-0 h-full w-full object-contain p-5 ${p.agotado ? "opacity-40 grayscale" : ""}`}
         />
       </div>
       <div className="flex flex-1 flex-col gap-4 p-5">
