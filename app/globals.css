@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: "Barlow", sans-serif;
+  --font-display: "Montserrat", sans-serif;
+  --color-dm: #f15922;
+  --color-dm-dark: #d6461a;
+  --color-coltene: #1597d4;
+  --color-navy: #1d2b6b;
+}
+
+html { scroll-behavior: smooth; scroll-padding-top: 120px; }
+body { background: #f6f6f7; color: #1f2125; }
+.font-display { font-family: "Montserrat", sans-serif; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { scrollbar-width: none; }
