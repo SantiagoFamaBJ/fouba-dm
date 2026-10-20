@@ -58,21 +58,28 @@ export default function Admin() {
   const cambiarVarios = (id: number, campos: Partial<Fila>) =>
     setFilas((fs) => fs.map((f) => (f.id === id ? { ...f, ...campos, _dirty: true } : f)));
 
-  // 10% automático: tachado = precio ÷ 0,9
+  // 10% automático: cargás el precio de lista (tachado) y el precio final = lista − 10%
   const SIN_AUTO = ["combos", "destacada"];
-  const tachado10 = (p: number) => Math.round(p / 0.9);
-  const tiene10 = (f: Fila) => !!f.precio && f.precio_tachado === tachado10(f.precio);
+  const menos10 = (lista: number) => Math.round(lista * 0.9);
+  const tiene10 = (f: Fila) => !!f.precio_tachado && f.precio === menos10(f.precio_tachado);
 
-  const cambiarPrecio = (f: Fila, v: number) => {
+  const cambiarLista = (f: Fila, v: number | null) => {
     const auto = tiene10(f) || (!f.precio && !f.precio_tachado && !SIN_AUTO.includes(f.seccion));
-    if (auto && v > 0) cambiarVarios(f.id, { precio: v, precio_tachado: tachado10(v), badge: f.badge || "10% OFF" });
-    else cambiarVarios(f.id, { precio: v });
+    if (auto && v && v > 0) cambiarVarios(f.id, { precio_tachado: v, precio: menos10(v), badge: f.badge || "10% OFF" });
+    else cambiarVarios(f.id, { precio_tachado: v });
   };
 
-  const toggle10 = (f: Fila, on: boolean) =>
-    on
-      ? cambiarVarios(f.id, { precio_tachado: tachado10(f.precio), badge: f.badge || "10% OFF" })
-      : cambiarVarios(f.id, { precio_tachado: null, badge: f.badge === "10% OFF" ? null : f.badge });
+  const toggle10 = (f: Fila, on: boolean) => {
+    if (on) {
+      // si no hay precio de lista, toma el precio cargado como lista
+      const lista = f.precio_tachado || f.precio;
+      if (!lista) return avisar("Cargá primero el precio de lista");
+      cambiarVarios(f.id, { precio_tachado: lista, precio: menos10(lista), badge: f.badge || "10% OFF" });
+    } else {
+      // sin descuento: el precio final vuelve a ser el de lista
+      cambiarVarios(f.id, { precio: f.precio_tachado || f.precio, precio_tachado: null, badge: f.badge === "10% OFF" ? null : f.badge });
+    }
+  };
 
   const activar = async (f: Fila) => {
     await guardar({ ...f, visible: true });
@@ -298,16 +305,16 @@ export default function Admin() {
                           <input value={f.nombre} onChange={(e) => cambiar(f.id, "nombre", e.target.value)} className="rounded-lg border border-gray-200 px-2.5 py-1.5 font-semibold sm:col-span-2" placeholder="Nombre" />
                           <input value={f.detalle || ""} onChange={(e) => cambiar(f.id, "detalle", e.target.value)} className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-sm sm:col-span-2" placeholder="Detalle (opcional)" />
                           <label className="flex items-center gap-2 text-sm">
-                            <span className="w-16 shrink-0 text-gray-500">Precio</span>
-                            <input type="number" inputMode="numeric" value={f.precio} onChange={(e) => cambiarPrecio(f, Number(e.target.value))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5 font-bold" />
+                            <span className="w-16 shrink-0 text-gray-500">Lista</span>
+                            <input type="number" inputMode="numeric" value={f.precio_tachado ?? ""} onChange={(e) => cambiarLista(f, e.target.value === "" ? null : Number(e.target.value))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5" placeholder="precio tachado" />
+                            <label className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-xs font-bold ${tiene10(f) ? "bg-[#f15922] text-white" : "bg-gray-100"}`} title="Precio final = lista − 10%">
+                              <input type="checkbox" className="hidden" checked={tiene10(f)} onChange={(e) => toggle10(f, e.target.checked)} />
+                              −10% auto
+                            </label>
                           </label>
                           <label className="flex items-center gap-2 text-sm">
-                            <span className="w-16 shrink-0 text-gray-500">Tachado</span>
-                            <input type="number" inputMode="numeric" value={f.precio_tachado ?? ""} onChange={(e) => cambiar(f.id, "precio_tachado", e.target.value === "" ? null : Number(e.target.value))} className="w-full rounded-lg border border-gray-200 px-2.5 py-1.5" placeholder="sin tachado" />
-                            <label className={`flex shrink-0 cursor-pointer items-center gap-1 rounded-md px-2 py-1.5 text-xs font-bold ${tiene10(f) ? "bg-[#f15922] text-white" : "bg-gray-100"}`} title="Calcula el tachado solo (precio ÷ 0,9)">
-                              <input type="checkbox" className="hidden" checked={tiene10(f)} onChange={(e) => toggle10(f, e.target.checked)} />
-                              10% auto
-                            </label>
+                            <span className="w-16 shrink-0 text-gray-500">Final</span>
+                            <input type="number" inputMode="numeric" value={f.precio} onChange={(e) => cambiar(f.id, "precio", Number(e.target.value))} className={`w-full rounded-lg border border-gray-200 px-2.5 py-1.5 font-bold ${tiene10(f) ? "bg-orange-50 text-[#f15922]" : ""}`} />
                           </label>
                           <label className="flex items-center gap-2 text-sm">
                             <span className="w-16 shrink-0 text-gray-500">Badge</span>
